@@ -8,6 +8,7 @@ import logging
 histone_marks = ["H3K4me3", "H3K4me2", "H3K4me1", "H3K27ac", "H3K9ac", "H3K36me3",
                  "H3K27me3", "H3K9me3"]
 TF_marks = ['CTCF', 'POLR2A']
+DNase = ['DNase']
 gene = ['transcription']
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ class FeatureConfig:
         self.featureLst = list(featuretypes)
         self.assembly = assembly
         
-    def find_ENCODE_data_entries(self, assay_type, target=None, tissue_type=None, searchTerm=None, cell_line=False, rfa="ENCODE4"):
+    def find_ENCODE_data_entries(self, assay_type, target=None, tissue_type=None, searchTerm=None, cell_line=False, genome_build="GRCh38", rfa="ENCODE4"):
         if 'histone' in assay_type.lower():
             assay_title = 'Histone+ChIP-seq'
             assay_filter_line = f'&assay_title={assay_title}'
@@ -42,9 +43,15 @@ class FeatureConfig:
         elif 'TF' in assay_type.upper():
             assay_title='TF+ChIP-seq'
             assay_filter_line = f'&assay_title={assay_title}'
-            file_type='bed+narrowPeak'
-            output_type='*'
-    
+            if target =="CTCF":
+                file_type='bed+narrowPeak'
+                output_type='*'
+            # RNA polymerase II 
+            elif target=="POLR2A":
+                file_type='bigWig'
+                output_type='signal+p-value'
+                
+
         elif 'RNA' in assay_type.upper():
             assay_titles =[ 'total+RNA-seq', 'polyA+plus+RNA-seq'] # add compatible RNA-seq here
             assay_filter_line = ''
@@ -53,6 +60,12 @@ class FeatureConfig:
 
             file_type='tsv'
             output_type='gene+quantifications'
+
+        elif 'dnase' in assay_type.lower():
+            assay_title='DNase-seq'
+            assay_filter_line = f'&assay_title={assay_title}'
+            file_type='bigWig'
+            output_type='*'
             
     
         if not tissue_type is None:
@@ -128,7 +141,7 @@ class FeatureConfig:
             '&status=released'
             f'&file_type={file_type}'
             f'&output_type={output_type}'
-            f'&assembly={self.assembly}'
+            f'&assembly={genome_build}'
             f'&award.rfa={rfa}'
             '&field=output_type' 
             '&field=target.label' 
@@ -193,9 +206,10 @@ class FeatureConfig:
 
         return merged_df
     
-    def select_files(self, assay_type, feature, rfa):
+    def select_files(self, assay_type, feature, genome_build, rfa):
         try:
-            merged_df = self.find_ENCODE_data_entries(assay_type, target=feature, tissue_type=self.tissue_type, searchTerm=self.searchTerm, cell_line=self.cell_line, rfa=rfa)
+            merged_df = self.find_ENCODE_data_entries(assay_type, target=feature, tissue_type=self.tissue_type, searchTerm=self.searchTerm, cell_line=self.cell_line,\
+                                                      genome_build=genome_build, rfa=rfa)
         except AssertionError as e :
             logger.warning(e)   
             return None
@@ -205,8 +219,9 @@ class FeatureConfig:
         input("\nEnter the indices of rows to use : ").strip().split()))    
         return merged_df.iloc[use_rows]
 
-
-    def parse_url(self, rfa="ENCODE4"):
+    def parse_url(self,  genome_build="GRCh38", rfa="ENCODE4"):
+        if genome_build=='hg19':
+            rfa='ENCODE3' # if hg19 provided as genome build version, rfa should be overwritten to ENCDOE3
         feature_url_dict=defaultdict(list)
         for feature in self.featureLst:
             
@@ -214,7 +229,7 @@ class FeatureConfig:
 
             if feature in histone_marks:
                 assay_type="histone chip-seq"
-                final_df = self.select_files(assay_type, feature, rfa)
+                final_df = self.select_files(assay_type, feature, genome_build, rfa)
                 
                 if final_df is None:
                     continue
@@ -224,7 +239,7 @@ class FeatureConfig:
 
             elif feature in TF_marks:
                 assay_type="TF chip-seq"
-                final_df = self.select_files(assay_type, feature, rfa)
+                final_df = self.select_files(assay_type, feature, genome_build, rfa)
                 
                 if final_df is None:
                     continue
@@ -233,22 +248,23 @@ class FeatureConfig:
 
             elif feature in gene:
                 assay_type="RNA-seq"
-                final_df = self.select_files(assay_type, None, rfa)
+                final_df = self.select_files(assay_type, None, genome_build, rfa)
                 
+                if final_df is None:
+                    continue
+                for url in final_df.cloud_metadata.values:
+                    feature_url_dict[feature].append(url)     
+
+            elif feature in DNase:
+                assay_type="DNase-seq"
+                final_df = self.select_files(assay_type, None, genome_build, rfa)
                 if final_df is None:
                     continue
                 for url in final_df.cloud_metadata.values:
                     feature_url_dict[feature].append(url)  
-            
-            elif feature.lower()=='dnase':
-                assay_type="DNase-seq"
-                final_df = self.select_files(assay_type, None, rfa)
                 
-                if final_df is None:
-                    continue
-                for url in final_df.cloud_metadata.values:
-                    feature_url_dict[feature].append(url)
-
+                
+                    
             else:
                 logger.info(f"{feature} is currently not supported!")
                 
