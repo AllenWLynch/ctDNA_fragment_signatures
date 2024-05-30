@@ -11,7 +11,8 @@ import logging
 
 histone_marks = ["H3K4me3", "H3K4me2", "H3K4me1", "H3K27ac", "H3K9ac", "H3K36me3",
                  "H3K27me3", "H3K9me3"]
-TF_marks = ['CTCF']
+TF_marks = ['CTCF', 'POLR2A']
+DNase = ['DNase']
 gene = ['transcription']
 
 logger = logging.getLogger(__name__)
@@ -39,10 +40,15 @@ class FeatureConfig:
         elif 'TF' in assay_type.upper():
             assay_title='TF+ChIP-seq'
             assay_filter_line = f'&assay_title={assay_title}'
-            file_type='bed+narrowPeak'
-            output_type='*'
-            
-    
+            if target =="CTCF":
+                file_type='bed+narrowPeak'
+                output_type='*'
+            # RNA polymerase II 
+            elif target=="POLR2A":
+                file_type='bigWig'
+                output_type='signal+p-value'
+                
+
         elif 'RNA' in assay_type.upper():
             assay_titles =[ 'total+RNA-seq', 'polyA+plus+RNA-seq'] # add compatible RNA-seq here
             assay_filter_line = ''
@@ -51,6 +57,12 @@ class FeatureConfig:
 
             file_type='tsv'
             output_type='gene+quantifications'
+
+        elif 'dnase' in assay_type.lower():
+            assay_title='DNase-seq'
+            assay_filter_line = f'&assay_title={assay_title}'
+            file_type='bigWig'
+            output_type='*'
             
     
         if not tissue_type is None:
@@ -235,7 +247,17 @@ class FeatureConfig:
                 if final_df is None:
                     continue
                 for url in final_df.cloud_metadata.values:
-                    feature_url_dict[feature].append(url)                
+                    feature_url_dict[feature].append(url)     
+
+            elif feature in DNase:
+                assay_type="DNase-seq"
+                final_df = self.select_files(assay_type, None, genome_build, rfa)
+                if final_df is None:
+                    continue
+                for url in final_df.cloud_metadata.values:
+                    feature_url_dict[feature].append(url)  
+                
+                
                     
             else:
                 logger.info(f"{feature} is currently not supported!")
