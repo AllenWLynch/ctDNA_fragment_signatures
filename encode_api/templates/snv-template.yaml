@@ -1,0 +1,75 @@
+{# templates/fragments-template.yaml #}
+
+transcription: {{ features.transcription }}
+
+features:
+  gene_strand:
+    type: cardinality
+    url: ["$transcription"]
+    group: all
+    processing_fn: "merge-strand.sh"
+    column: 4
+
+  promoter_strand:
+    type: cardinality
+    url: ["$transcription"]
+    group: all
+    processing_fn: "get-promoters.sh 2000"
+    column: 4
+
+  transcription:
+    type: vector
+    url: ["$transcription"]
+    group: all
+    processing_fn: "map-values.sh"
+
+  transcription_windowcutter:
+    type: categorical
+    url: ["$transcription"]
+    group: all
+    column: 5
+    skip: true
+
+  TSS_region_windowcutter:
+    type: categorical
+    url: ["$transcription"]
+    group: all
+    processing_fn: "get-tss-region.sh 2000"
+    skip : true
+
+  TSS_usage:
+    type: vector
+    url: ["$transcription"]
+    group: all
+    processing_fn: "get-tss-usage.sh 2000"
+
+  TSS_distance:
+    type: distance
+    url: ["$transcription"]
+    group: all
+    processing_fn: "get-tss-region.sh 2000"
+{% for type in ["categorical", "distance"] %}
+  CTCF_binding:
+    type: categorical
+    url: {% for url in features.CTCF %}
+      - {{ url }}
+  {%- endfor %}
+  {%- if features.CTCF | length > 1 %}
+    processing_fn: "intersect-peaks.sh CTCF 2"
+  {%- endif %}
+    group: all
+{% endfor %}
+
+{%- set bw_features = ["H3K4me3","H3K4me2", "H3K4me1", "H3K27ac", "H3K9ac", "H3K36me3", "H3K27me3", "H3K9me3"] -%}
+{% for feature in bw_features %}
+  {{ feature }}:
+    type: bigwig
+    url: {% for url in features[feature] %}
+      - {{ url }}
+    {%- endfor %}
+    group: all
+    norm: power
+    {% if features[feature] | length > 1 -%}
+      processing_fn: "average-bigwigs.sh"
+    {%- endif %}
+{% endfor %}

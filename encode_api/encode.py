@@ -1,22 +1,20 @@
-import deeptools.getScorePerBigWigBin as score_bw
-from deeptools.correlation import Correlation
-import numpy as np
-import matplotlib.pyplot as plt
-import os
 import pandas as pd
 import requests
-from urllib.parse import urlparse
 from collections import defaultdict
 import logging
 
+
+
 histone_marks = ["H3K4me3", "H3K4me2", "H3K4me1", "H3K27ac", "H3K9ac", "H3K36me3",
                  "H3K27me3", "H3K9me3"]
-TF_marks = ['CTCF']
+TF_marks = ['CTCF', 'POLR2A']
 gene = ['transcription']
 
 logger = logging.getLogger(__name__)
 class FeatureConfig:
-    def __init__(self, tissue_type, exact_ontology=True, cell_line=False, *featuretypes):
+    def __init__(self, tissue_type, *featuretypes,
+                 exact_ontology=True, cell_line=False, assembly='GRCh38'):
+        
         if exact_ontology:
             self.tissue_type=tissue_type
             self.searchTerm=None
@@ -25,7 +23,8 @@ class FeatureConfig:
             self.searchTerm=tissue_type
 
         self.cell_line = cell_line
-        self.featureLst = list(featuretypes)          
+        self.featureLst = list(featuretypes)
+        self.assembly = assembly
         
     def find_ENCODE_data_entries(self, assay_type, target=None, tissue_type=None, searchTerm=None, cell_line=False, rfa="ENCODE4"):
         if 'histone' in assay_type.lower():
@@ -33,15 +32,18 @@ class FeatureConfig:
             assay_filter_line = f'&assay_title={assay_title}'
             file_type='bigWig'
             output_type='signal+p-value'
-
-            
+        
+        elif 'DNase' in assay_type:
+            assay_title='DNase-seq'
+            assay_filter_line = f'&assay_title={assay_title}'
+            file_type='bigWig'
+            output_type='signal+p-value'
     
         elif 'TF' in assay_type.upper():
             assay_title='TF+ChIP-seq'
             assay_filter_line = f'&assay_title={assay_title}'
             file_type='bed+narrowPeak'
             output_type='*'
-            
     
         elif 'RNA' in assay_type.upper():
             assay_titles =[ 'total+RNA-seq', 'polyA+plus+RNA-seq'] # add compatible RNA-seq here
@@ -126,7 +128,7 @@ class FeatureConfig:
             '&status=released'
             f'&file_type={file_type}'
             f'&output_type={output_type}'
-            '&assembly=GRCh38'
+            f'&assembly={self.assembly}'
             f'&award.rfa={rfa}'
             '&field=output_type' 
             '&field=target.label' 
@@ -203,9 +205,13 @@ class FeatureConfig:
         input("\nEnter the indices of rows to use : ").strip().split()))    
         return merged_df.iloc[use_rows]
 
+
     def parse_url(self, rfa="ENCODE4"):
         feature_url_dict=defaultdict(list)
         for feature in self.featureLst:
+            
+            print('Processing feature:', feature)
+
             if feature in histone_marks:
                 assay_type="histone chip-seq"
                 final_df = self.select_files(assay_type, feature, rfa)
@@ -232,16 +238,18 @@ class FeatureConfig:
                 if final_df is None:
                     continue
                 for url in final_df.cloud_metadata.values:
-                    feature_url_dict[feature].append(url)                
-                    
+                    feature_url_dict[feature].append(url)  
+            
+            elif feature.lower()=='dnase':
+                assay_type="DNase-seq"
+                final_df = self.select_files(assay_type, None, rfa)
+                
+                if final_df is None:
+                    continue
+                for url in final_df.cloud_metadata.values:
+                    feature_url_dict[feature].append(url)
+
             else:
                 logger.info(f"{feature} is currently not supported!")
                 
-
-        return feature_url_dict
-
-
-    def generate_draft_config(self):
-        pass
-
-    
+        return {'features' : dict(feature_url_dict)}
