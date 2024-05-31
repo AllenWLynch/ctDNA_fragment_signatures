@@ -124,6 +124,10 @@ class FeatureConfig:
             )
             biosample_ontologies.append(biosample_ontology_condensed)
         biosample_metadata = pd.DataFrame(biosample_ontologies)
+
+        for col in ['summary']:
+            coldata = biosample_metadata.pop(col) 
+            biosample_metadata.insert(0, col, coldata)
     
         display(biosample_metadata)
 
@@ -186,15 +190,15 @@ class FeatureConfig:
         # Join with biosample_metadata.
         merged_df = file_metadata.merge(biosample_metadata, how='outer', on='dataset')
         column_order = [
+            'summary',
+            'biological_replicates',
             'file',
             'dataset',
             'project',
-            'biological_replicates',
             'output_type',
             'target',
             'cell_slims',
             'developmental_slims',
-            'summary',
             'organ_slims',
             'system_slims',
             'term_name',

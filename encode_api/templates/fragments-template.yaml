@@ -1,5 +1,6 @@
 {# fragments-template.yaml #}
 
+corpus_name:
 transcription: {{ features.transcription }}
 
 features:
@@ -58,7 +59,8 @@ features:
     group: all
 {% endfor %}
 
-{%- set bw_features = ["H3K4me3","H3K4me2", "H3K4me1", "H3K27ac", "H3K9ac", "H3K36me3", "H3K27me3", "H3K9me3"] -%}
+{%- set bw_features = ["H3K4me3", "H3K4me1", "H3K27ac", 
+            "H3K36me3", "H3K27me3", "H3K9me3", "DNase", "POLR2A"] -%}
 {% for feature in bw_features %}
   {{ feature }}:
     type: bigwig
@@ -69,5 +71,6 @@ features:
     norm: power
     {% if features[feature] | length > 1 -%}
       processing_fn: "average-bigwigs.sh"
+      conda: envs/deeptools.yaml
     {%- endif %}
 {% endfor %}

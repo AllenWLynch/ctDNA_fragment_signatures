@@ -1,5 +1,6 @@
 {# templates/fragments-template.yaml #}
 
+corpus_name:
 transcription: {{ features.transcription }}
 
 features:
@@ -71,5 +72,6 @@ features:
     norm: power
     {% if features[feature] | length > 1 -%}
       processing_fn: "average-bigwigs.sh"
+      conda: deeptools
     {%- endif %}
 {% endfor %}
